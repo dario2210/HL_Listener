@@ -53,6 +53,18 @@ docker compose logs -f listener
 ./exports
 ```
 
+6. Dokladna instrukcja wdrozenia na serwer jest w:
+
+```text
+DEPLOY_CONTABO.md
+```
+
+7. Przykladowe zapytania SQL sa w:
+
+```text
+QUERIES.md
+```
+
 ## Konfiguracja
 
 Najwazniejsze zmienne w `.env`:
