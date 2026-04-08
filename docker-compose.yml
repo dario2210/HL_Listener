@@ -25,6 +25,29 @@ services:
       db:
         condition: service_healthy
 
+  csv-exporter:
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.exporter_main"]
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./exports:/exports
+
+  adminer:
+    image: adminer:4.8.1
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${ADMINER_BIND_ADDRESS:-127.0.0.1}:${ADMINER_PORT:-8080}:8080"
+
 volumes:
   postgres_data:
-

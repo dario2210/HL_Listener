@@ -29,6 +29,8 @@ class Settings:
     database_connect_retry_seconds: float
     log_level: str
     print_discovered_markets: bool
+    csv_export_dir: str
+    csv_export_interval_seconds: float
 
 
 def load_settings() -> Settings:
@@ -50,4 +52,6 @@ def load_settings() -> Settings:
         database_connect_retry_seconds=float(os.getenv("DATABASE_CONNECT_RETRY_SECONDS", "5")),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         print_discovered_markets=_as_bool(os.getenv("PRINT_DISCOVERED_MARKETS", "false")),
+        csv_export_dir=os.getenv("CSV_EXPORT_DIR", "/exports"),
+        csv_export_interval_seconds=float(os.getenv("CSV_EXPORT_INTERVAL_SECONDS", "30")),
     )

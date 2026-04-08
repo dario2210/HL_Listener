@@ -6,7 +6,9 @@ Kontenerowy listener `Hyperliquid`, ktory na start nasluchuje tylko `BTC` i `ETH
 - subskrybuje strumien `trades` po WebSocket,
 - filtruje tylko transakcje powyzej zadanego progu USD,
 - zapisuje rekordy do `PostgreSQL`,
-- przygotowuje widok SQL pod pozniejsza analize adresow.
+- przygotowuje widok SQL pod pozniejsza analize adresow,
+- eksportuje dane do `CSV`,
+- udostepnia `Adminer` do podgladu bazy w przegladarce.
 
 ## Co zapisuje baza
 
@@ -45,6 +47,12 @@ docker compose up -d --build
 docker compose logs -f listener
 ```
 
+5. Eksportowane pliki CSV pojawia sie w katalogu:
+
+```bash
+./exports
+```
+
 ## Konfiguracja
 
 Najwazniejsze zmienne w `.env`:
@@ -52,6 +60,9 @@ Najwazniejsze zmienne w `.env`:
 - `TRACKED_COINS=BTC,ETH`
 - `TRACKED_KEYWORDS=`
 - `MIN_NOTIONAL_USD=100000`
+- `CSV_EXPORT_INTERVAL_SECONDS=30`
+- `ADMINER_PORT=8080`
+- `ADMINER_BIND_ADDRESS=127.0.0.1`
 
 Jak dziala wybor rynkow:
 
@@ -80,8 +91,49 @@ order by total_notional_usd desc
 limit 50;
 ```
 
+## CSV export
+
+Osobny kontener `csv-exporter` odswieza pliki:
+
+- `exports/hl_trades.csv`
+- `exports/wallet_trade_events.csv`
+
+Eksport jest robiony cyklicznie co `CSV_EXPORT_INTERVAL_SECONDS`.
+
+## Adminer
+
+`Adminer` pozwala obejrzec baze w przegladarce.
+
+Domyslnie nasluchuje tylko lokalnie na serwerze:
+
+```text
+127.0.0.1:8080
+```
+
+Logowanie:
+
+- System: `PostgreSQL`
+- Server: `db`
+- Username: wartosc `POSTGRES_USER`
+- Password: wartosc `POSTGRES_PASSWORD`
+- Database: wartosc `POSTGRES_DB`
+
+Najbezpieczniejszy sposob dostepu z laptopa to tunel SSH, np.:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 user@twoj-serwer
+```
+
+Wtedy otwierasz w przegladarce:
+
+```text
+http://127.0.0.1:8080
+```
+
 ## Uwagi operacyjne
 
 - Ten MVP nasluchuje rynki `perp`.
 - Gdy bedziemy gotowi rozszerzyc system o inne aktywa, wystarczy dopisac je do `TRACKED_COINS` albo `TRACKED_KEYWORDS`.
 - Jesli chcesz pozniej dodac alerty, najprosciej dolozyc osobny worker Telegram/Discord nad ta sama baza.
+- Nie trzeba wystawiac portu `5432` do internetu. `Adminer` laczy sie z baza po sieci Dockera.
+- Jesli chcesz wystawic `Adminer` publicznie, zmien `ADMINER_BIND_ADDRESS=0.0.0.0` i otworz port `ADMINER_PORT` w firewallu. Lepiej ograniczyc dostep do Twojego IP.
