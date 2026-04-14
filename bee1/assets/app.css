@@ -99,9 +99,119 @@ p {
 .tv-chart {
   width: 100%;
   height: 720px;
+  position: relative;
+  overscroll-behavior: contain;
   border-radius: 22px;
   overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 3.7fr) minmax(0, 1.35fr);
+  gap: 12px;
+  padding: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(5, 10, 17, 0.55));
+}
+
+.tv-chart-pane {
+  position: relative;
+  min-height: 0;
+  width: 100%;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(4, 9, 16, 0.18);
+}
+
+.tv-chart-host,
+.tv-chart-pane-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.tv-chart-pane-overlay,
+.tv-trade-pins {
+  pointer-events: none;
+}
+
+.tv-crosshair-v,
+.tv-crosshair-h {
+  position: absolute;
+  display: none;
+  z-index: 6;
+  opacity: 0.92;
+}
+
+.tv-crosshair-v {
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 0;
+  border-left: 1px dashed rgba(105, 183, 255, 0.72);
+}
+
+.tv-crosshair-h {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  border-top: 1px dashed rgba(149, 166, 188, 0.72);
+}
+
+.tv-trade-pins {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+}
+
+.tv-trade-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 12px));
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--pin-color);
+  background: rgba(6, 12, 20, 0.96);
+  color: #eef6ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.tv-trade-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pin-color);
+  transform: translateX(-50%);
+}
+
+.tv-trade-pin.is-below {
+  transform: translate(-50%, 12px);
+}
+
+.tv-trade-pin.is-above::after {
+  bottom: -11px;
+}
+
+.tv-trade-pin.is-below::after {
+  top: -11px;
+}
+
+.tv-trade-pin.is-exit {
+  border-style: dashed;
+}
+
+.tv-trade-pin.is-selected {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 0 4px rgba(105, 183, 255, 0.22);
+}
+
+.tv-trade-pin.is-short {
+  color: #ffe7e1;
 }
 
 .chart-caption {
@@ -137,11 +247,15 @@ p {
 
   .tv-chart {
     height: 560px;
+    grid-template-rows: minmax(0, 3.2fr) minmax(0, 1.5fr);
   }
 }
 
 @media (max-width: 860px) {
   .tv-chart {
     height: 440px;
+    grid-template-rows: minmax(0, 2.8fr) minmax(0, 1.4fr);
+    gap: 10px;
+    padding: 8px;
   }
 }

@@ -49,7 +49,7 @@ import time as _time
 _SERVER_TOKEN = str(int(_time.time()))   # unikalny token per restart kontenera
 _lock   = threading.Lock()
 _state  = {"running": False, "stop": False, "status": "", "progress": "",
-           "result": None}
+           "result": None, "result_version": 0}
 _chart_df_cache: dict = {}   # (symbol, tf) → df z wskaźnikami
 _APP_DIR = Path(__file__).resolve().parent
 
@@ -57,7 +57,10 @@ def gs():
     with _lock: return dict(_state)
 
 def ss(**kw):
-    with _lock: _state.update(kw)
+    with _lock:
+        if "result" in kw:
+            _state["result_version"] += 1
+        _state.update(kw)
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 lbl = lambda t: html.Div(t, style={
@@ -260,6 +263,108 @@ def _trade_detail_panel(trade: dict | None) -> html.Div:
               "borderRadius":"10px","padding":"16px 20px","marginTop":"12px"})
 
 
+def _trade_detail_panel(trade: dict | None) -> html.Div:
+    """Panel ze szczegolami wybranego trade'u."""
+    if not trade:
+        return html.Div(
+            "Kliknij wiersz w tabeli Transakcje, aby zobaczyc szczegoly trade'u.",
+            style={"color": C["muted"], "fontSize": "12px", "marginTop": "12px",
+                   "textAlign": "center", "padding": "16px"},
+        )
+
+    def fmt_float(value, pattern: str, default: str = "n/d") -> str:
+        number = _as_float(value, float("nan"))
+        return format(number, pattern) if pd.notna(number) else default
+
+    def fmt_pct(value, digits: int = 3, default: str = "n/d") -> str:
+        number = _as_float(value, float("nan"))
+        if pd.isna(number):
+            return default
+        return f"{number * 100:.{digits}f}%"
+
+    def fmt_time(value) -> str:
+        ts = pd.to_datetime(value, utc=True, errors="coerce")
+        if pd.notna(ts):
+            return ts.strftime("%Y-%m-%d %H:%M")
+        return str(value or "n/d")
+
+    def fmt_text(value, default: str = "n/d") -> str:
+        if value is None:
+            return default
+        text = str(value).strip()
+        return text if text and text.lower() != "nan" else default
+
+    def row2(l1, v1, l2, v2):
+        cell_style = {"flex": "1", "minWidth": "160px"}
+        value_style = {"fontSize": "13px", "color": C["text"], "fontWeight": "500"}
+        return html.Div([
+            html.Div([lbl(l1), html.Div(v1, style=value_style)], style=cell_style),
+            html.Div([lbl(l2), html.Div(v2, style=value_style)], style=cell_style),
+        ], style={"display": "flex", "gap": "16px", "marginBottom": "6px"})
+
+    trade_no = fmt_text(trade.get("trade_no"), "")
+    title = f"Trade #{trade_no}" if trade_no else "Szczegoly trade'u"
+    side = fmt_text(trade.get("side"), "").lower()
+    pnl = _as_float(trade.get("pnl"), 0.0)
+    pnl_clr = C["green"] if pnl >= 0 else C["red"]
+    side_clr = C["green"] if side == "long" else C["red"]
+
+    return html.Div([
+        html.Div(title, style={"fontSize": "11px", "fontWeight": "600",
+            "color": C["muted"], "textTransform": "uppercase", "letterSpacing": "0.06em",
+            "marginBottom": "10px"}),
+        html.Div([
+            row2(
+                "Side/Powod",
+                html.Span(
+                    f"{fmt_text(trade.get('side'), '').upper()} -> {fmt_text(trade.get('reason'))}",
+                    style={"color": side_clr, "fontWeight": "600"},
+                ),
+                "Wynik",
+                html.Span(
+                    f"{pnl:+.2f} USD  ({fmt_pct(trade.get('net_ret'), digits=3, default='+0.000%')})",
+                    style={"color": pnl_clr, "fontWeight": "600"},
+                ),
+            ),
+            row2(
+                "Wejscie",
+                f"{fmt_time(trade.get('entry_time'))}  @  {fmt_float(trade.get('entry_price'), '.4f')}",
+                "Wyjscie",
+                f"{fmt_time(trade.get('exit_time'))}  @  {fmt_float(trade.get('exit_price'), '.4f')}",
+            ),
+            row2(
+                "Bary w pozycji",
+                fmt_text(trade.get("exit_bars", trade.get("bars_in_position", "n/d"))),
+                "Fee",
+                f"{fmt_float(trade.get('fee_usd'), '.2f', '0.00')} USD",
+            ),
+            html.Div(style={"borderTop": f"1px solid {C['border']}", "margin": "8px 0"}),
+            html.Div("Snapshot wejscia", style={"fontSize": "10px", "color": C["muted"],
+                "fontWeight": "600", "textTransform": "uppercase", "letterSpacing": "0.05em",
+                "marginBottom": "6px"}),
+            row2("RSI", fmt_float(trade.get("entry_rsi"), ".2f"),
+                 "TMA(RSI)", fmt_float(trade.get("entry_tma_rsi"), ".2f")),
+            row2("EMA", fmt_float(trade.get("entry_ema"), ".2f"),
+                 "EMA slope", fmt_pct(trade.get("entry_ema_slope"), digits=4)),
+            row2("Dist EMA", fmt_pct(trade.get("entry_ema_dist"), digits=3),
+                 "Strefa TMA", f"{fmt_text(trade.get('entry_tma_zone'))}  cross: {fmt_text(trade.get('entry_cross_type'))}"),
+            row2("TP plan", fmt_float(trade.get("entry_tp_price"), ".4f"),
+                 "SL plan", fmt_float(trade.get("entry_sl_price"), ".4f")),
+            html.Div(style={"borderTop": f"1px solid {C['border']}", "margin": "8px 0"}),
+            html.Div("Snapshot wyjscia", style={"fontSize": "10px", "color": C["muted"],
+                "fontWeight": "600", "textTransform": "uppercase", "letterSpacing": "0.05em",
+                "marginBottom": "6px"}),
+            row2("RSI wyjscie", fmt_float(trade.get("exit_rsi"), ".2f"),
+                 "TMA wyjscie", fmt_float(trade.get("exit_tma_rsi"), ".2f")),
+            row2("RSI peak", fmt_float(trade.get("exit_rsi_peak"), ".2f"),
+                 "Over zone", fmt_text(trade.get("exit_over_zone", False))),
+            row2("Trigger", fmt_text(trade.get("exit_trigger", trade.get("reason"))),
+                 "Window WFO", fmt_text(trade.get("window_id", "n/d"))),
+        ]),
+    ], style={"background": C["surface"], "border": f"1px solid {C['border']}",
+              "borderRadius": "10px", "padding": "16px 20px", "marginTop": "12px"})
+
+
 def _chart_source_df(symbol: str, tf: str) -> pd.DataFrame:
     key = (symbol.lower(), tf)
     if key not in _chart_df_cache:
@@ -269,6 +374,10 @@ def _chart_source_df(symbol: str, tf: str) -> pd.DataFrame:
         except Exception:
             _chart_df_cache[key] = pd.DataFrame()
     return _chart_df_cache[key]
+
+
+def _invalidate_chart_cache(symbol: str, tf: str) -> None:
+    _chart_df_cache.pop((symbol.lower(), tf), None)
 
 
 def _utc_timestamp(value) -> pd.Timestamp:
@@ -282,14 +391,82 @@ def _unix_seconds(value) -> int:
     return int(_utc_timestamp(value).timestamp())
 
 
-def _filter_chart_trades(trades_df: pd.DataFrame, filter_mode: str = "all") -> pd.DataFrame:
+def _as_float(value, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _annotate_trades(trades_df: pd.DataFrame) -> pd.DataFrame:
     if trades_df is None or trades_df.empty:
         return pd.DataFrame()
 
-    tdf = trades_df.copy()
+    tdf = trades_df.copy().reset_index(drop=True)
+    if "trade_no" not in tdf.columns:
+        tdf["trade_no"] = np.arange(1, len(tdf) + 1)
+
+    numeric_cols = [
+        "entry_price", "exit_price", "gross_ret", "fee_ret", "net_ret",
+        "pnl", "fee_usd", "entry_rsi", "entry_tma_rsi", "entry_ema",
+        "entry_ema_slope", "entry_ema_dist", "entry_tp_price", "entry_sl_price",
+        "exit_rsi", "exit_tma_rsi", "exit_rsi_peak",
+    ]
+    for col in numeric_cols:
+        if col in tdf.columns:
+            tdf[col] = pd.to_numeric(tdf[col], errors="coerce")
+
+    return tdf
+
+
+def _normalize_chart_trades(trades_df: pd.DataFrame) -> pd.DataFrame:
+    tdf = _annotate_trades(trades_df)
+    if tdf.empty:
+        return tdf
+
     for col in ("entry_time", "exit_time"):
         if col in tdf.columns:
             tdf[col] = pd.to_datetime(tdf[col], utc=True, errors="coerce")
+    return tdf
+
+
+def _trade_table_frame(trades_df: pd.DataFrame) -> pd.DataFrame:
+    tdf = _normalize_chart_trades(trades_df)
+    if tdf.empty:
+        return pd.DataFrame()
+
+    cols = [
+        c for c in [
+            "trade_no", "side", "entry_time", "exit_time", "entry_price",
+            "exit_price", "gross_ret", "fee_ret", "net_ret", "pnl", "fee_usd", "reason",
+        ] if c in tdf.columns
+    ]
+    disp = tdf[cols].copy()
+    for col in ["gross_ret", "fee_ret", "net_ret"]:
+        if col in disp.columns:
+            disp[col] = (disp[col] * 100).round(3).astype(str) + "%"
+    for col in ["pnl", "fee_usd", "entry_price", "exit_price"]:
+        if col in disp.columns:
+            disp[col] = disp[col].round(2)
+    for col in ["entry_time", "exit_time"]:
+        if col in disp.columns:
+            disp[col] = pd.to_datetime(disp[col]).dt.strftime("%Y-%m-%d %H:%M")
+    if "trade_no" in disp.columns:
+        disp["trade_no"] = disp["trade_no"].astype(int)
+    return disp
+
+
+def _serialize_trade_record(trade_row: pd.Series | dict) -> dict:
+    data = trade_row.to_dict() if isinstance(trade_row, pd.Series) else dict(trade_row)
+    return json.loads(pd.DataFrame([data]).to_json(orient="records", date_format="iso"))[0]
+
+
+def _filter_chart_trades(trades_df: pd.DataFrame, filter_mode: str = "all") -> pd.DataFrame:
+    tdf = _normalize_chart_trades(trades_df)
+    if tdf.empty:
+        return tdf
 
     if filter_mode == "long":
         tdf = tdf[tdf["side"] == "long"]
@@ -301,6 +478,53 @@ def _filter_chart_trades(trades_df: pd.DataFrame, filter_mode: str = "all") -> p
     return tdf.reset_index(drop=True)
 
 
+def _crop_chart_df(
+    df: pd.DataFrame,
+    trades_df: pd.DataFrame,
+    windows_df: pd.DataFrame | None = None,
+    selected_trade: dict | None = None,
+    pad_bars: int = 96,
+) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    bounds: list[pd.Timestamp] = []
+
+    if trades_df is not None and not trades_df.empty:
+        for col in ("entry_time", "exit_time"):
+            if col not in trades_df.columns:
+                continue
+            series = pd.to_datetime(trades_df[col], utc=True, errors="coerce").dropna()
+            if not series.empty:
+                bounds.extend([series.min(), series.max()])
+
+    if windows_df is not None and not windows_df.empty:
+        for col in ("live_start", "live_end"):
+            if col not in windows_df.columns:
+                continue
+            series = pd.to_datetime(windows_df[col], utc=True, errors="coerce").dropna()
+            if not series.empty:
+                bounds.extend([series.min(), series.max()])
+
+    if selected_trade:
+        for value in (selected_trade.get("entry_time"), selected_trade.get("exit_time")):
+            ts = pd.to_datetime(value, utc=True, errors="coerce")
+            if not pd.isna(ts):
+                bounds.append(ts)
+
+    if not bounds:
+        if len(df) <= 3000:
+            return df
+        return df.iloc[-3000:].reset_index(drop=True)
+
+    start_bound = min(bounds)
+    end_bound = max(bounds)
+    times = df["time"]
+    start_idx = max(0, int(times.searchsorted(start_bound, side="left")) - pad_bars)
+    end_idx = min(len(df) - 1, int(times.searchsorted(end_bound, side="right")) + pad_bars)
+    return df.iloc[start_idx:end_idx + 1].reset_index(drop=True)
+
+
 def lightweight_chart_payload(
     symbol: str,
     tf: str,
@@ -309,9 +533,36 @@ def lightweight_chart_payload(
     selected_trade: dict | None = None,
     filter_mode: str = "all",
 ) -> dict[str, object]:
-    df = _chart_source_df(symbol, tf)
-    if df is None or df.empty:
-        return {"candles": [], "lines": [], "markers": [], "focusRange": None}
+    source_df = _chart_source_df(symbol, tf)
+    if source_df is None or source_df.empty:
+        return {
+            "candles": [],
+            "lines": [],
+            "signalLines": [],
+            "markers": [],
+            "tradePins": [],
+            "focusRange": None,
+            "selectedTradeNo": None,
+        }
+
+    normalized_trades = _normalize_chart_trades(trades_df)
+    filtered_trades = _filter_chart_trades(normalized_trades, filter_mode)
+    df = _crop_chart_df(
+        source_df,
+        normalized_trades,
+        windows_df=windows_df,
+        selected_trade=selected_trade,
+    )
+    if df.empty:
+        return {
+            "candles": [],
+            "lines": [],
+            "signalLines": [],
+            "markers": [],
+            "tradePins": [],
+            "focusRange": None,
+            "selectedTradeNo": None,
+        }
 
     candles = [
         {
@@ -351,20 +602,68 @@ def lightweight_chart_payload(
             }
         )
 
-    filtered_trades = _filter_chart_trades(trades_df, filter_mode)
+    signal_specs = [
+        ("rsi", "RSI", C["blue"], 1.9, True),
+        ("tma_rsi", "TMA(RSI)", C["amber"], 2.2, True),
+    ]
+    signal_lines = []
+    for column, label, color, width, visible in signal_specs:
+        if column not in df.columns:
+            continue
+        series = []
+        for row in df[["time", column]].itertuples(index=False):
+            value = getattr(row, column)
+            if pd.isna(value):
+                continue
+            series.append({"time": _unix_seconds(row.time), "value": round(float(value), 4)})
+        signal_lines.append(
+            {
+                "id": column,
+                "label": label,
+                "color": color,
+                "lineWidth": width,
+                "visible": visible,
+                "data": series,
+            }
+        )
+
+    time_values = [_unix_seconds(ts) for ts in df["time"]]
+    level_specs = [
+        ("tma-low-min", "TMA low min", TMA_LOW_MIN, "rgba(34, 211, 170, 0.22)", 1),
+        ("tma-low-max", "TMA low max", TMA_LOW_MAX, "rgba(34, 211, 170, 0.22)", 1),
+        ("tma-high-min", "TMA high min", TMA_HIGH_MIN, "rgba(255, 180, 84, 0.22)", 1),
+        ("tma-high-max", "TMA high max", TMA_HIGH_MAX, "rgba(255, 180, 84, 0.22)", 1),
+        ("rsi-mid", "RSI 50", 50.0, "rgba(149, 166, 188, 0.18)", 1),
+    ]
+    for line_id, label, level, color, width in level_specs:
+        signal_lines.append(
+            {
+                "id": line_id,
+                "label": label,
+                "color": color,
+                "lineWidth": width,
+                "visible": True,
+                "data": [{"time": time_value, "value": float(level)} for time_value in time_values],
+            }
+        )
+
     markers: list[dict[str, object]] = []
+    trade_pins: list[dict[str, object]] = []
     if not filtered_trades.empty:
         for trade in filtered_trades.itertuples(index=False):
+            trade_no = int(_as_float(getattr(trade, "trade_no", 0), 0.0))
             side = str(getattr(trade, "side", "")).lower()
-            pnl = float(getattr(trade, "pnl", 0.0) or 0.0)
+            pnl = _as_float(getattr(trade, "pnl", 0.0), 0.0)
             reason = str(getattr(trade, "reason", "") or "")
+            entry_price = _as_float(getattr(trade, "entry_price", 0.0), 0.0)
+            exit_price = _as_float(getattr(trade, "exit_price", 0.0), 0.0)
             markers.append(
                 {
                     "time": _unix_seconds(trade.entry_time),
                     "position": "belowBar" if side == "long" else "aboveBar",
                     "shape": "arrowUp" if side == "long" else "arrowDown",
                     "color": C["green"] if side == "long" else C["coral"],
-                    "text": f"IN {side[:1].upper()}",
+                    "text": f"#{trade_no}",
                 }
             )
             markers.append(
@@ -373,7 +672,33 @@ def lightweight_chart_payload(
                     "position": "aboveBar" if side == "long" else "belowBar",
                     "shape": "circle",
                     "color": "#22c55e" if pnl >= 0 else "#ef4444",
-                    "text": reason or f"{pnl:+.2f}",
+                    "text": f"#{trade_no}",
+                }
+            )
+            trade_pins.append(
+                {
+                    "tradeNo": trade_no,
+                    "time": _unix_seconds(trade.entry_time),
+                    "price": round(entry_price, 6),
+                    "label": f"#{trade_no}",
+                    "anchor": "below" if side == "long" else "above",
+                    "kind": "entry",
+                    "side": side,
+                    "color": C["green"] if side == "long" else C["coral"],
+                    "tooltip": f"Trade #{trade_no} entry | {side.upper()} | {reason or 'OPEN'}",
+                }
+            )
+            trade_pins.append(
+                {
+                    "tradeNo": trade_no,
+                    "time": _unix_seconds(trade.exit_time),
+                    "price": round(exit_price, 6),
+                    "label": f"#{trade_no}",
+                    "anchor": "above" if side == "long" else "below",
+                    "kind": "exit",
+                    "side": side,
+                    "color": "#22c55e" if pnl >= 0 else "#ef4444",
+                    "tooltip": f"Trade #{trade_no} exit | {side.upper()} | {reason or f'{pnl:+.2f} USD'}",
                 }
             )
 
@@ -393,7 +718,9 @@ def lightweight_chart_payload(
             )
 
     focus_range = None
+    selected_trade_no = None
     if selected_trade:
+        selected_trade_no = selected_trade.get("trade_no")
         entry_time = pd.to_datetime(selected_trade.get("entry_time"), utc=True, errors="coerce")
         exit_time = pd.to_datetime(selected_trade.get("exit_time"), utc=True, errors="coerce")
         if not pd.isna(entry_time):
@@ -412,8 +739,11 @@ def lightweight_chart_payload(
         "tf": tf,
         "candles": candles,
         "lines": lines,
+        "signalLines": signal_lines,
         "markers": markers,
+        "tradePins": trade_pins,
         "focusRange": focus_range,
+        "selectedTradeNo": selected_trade_no,
     }
 
 
@@ -775,6 +1105,7 @@ def sidebar():
             "fontSize":"12px","color":C["amber"],"textAlign":"center","minHeight":"16px","marginTop":"4px"}),
 
         dcc.Store(id="store-result"),
+        dcc.Store(id="store-run-meta", data={"running": False}),
 
     ],style={
         "width":"320px","minWidth":"320px","height":"100vh","overflowY":"auto",
@@ -810,7 +1141,7 @@ def main_panel():
         dcc.Store(id="store-chart-payload",  data=None),
         dcc.Store(id="store-server-token",   data=None, storage_type="session"),
         html.Div(id="chart-render-signal", style={"display":"none"}),
-        dcc.Interval(id="poll",interval=800,n_intervals=0),
+        dcc.Interval(id="poll",interval=15000,n_intervals=0),
         dcc.Location(id="_url", refresh=True),
     ],style={"marginLeft":"320px","padding":"24px","minHeight":"100vh",
              "background":"transparent","boxSizing":"border-box"})
@@ -854,17 +1185,19 @@ pre, code, .dash-spreadsheet-container {
 
 /* ── Dropdown ── */
 .wt-drp .Select-control {
-    background: """ + C["surf2"] + """ !important;
+    background: #f5f7fb !important;
     border: 1px solid """ + C["border"] + """ !important;
     border-radius: 14px !important;
     min-height: 42px !important;
     cursor: pointer !important;
 }
-.wt-drp .Select-placeholder { color: """ + C["muted"] + """ !important; font-size:13px !important; }
-.wt-drp .Select-value        { color: """ + C["text"] + """ !important; }
-.wt-drp .Select-value-label  { color: """ + C["text"] + """ !important; font-size:13px !important; }
-.wt-drp .Select-input input  { color: """ + C["text"] + """ !important; }
-.wt-drp .Select-arrow        { border-top-color: """ + C["muted"] + """ !important; }
+.wt-drp .Select-placeholder { color:#0b1220 !important; opacity:1 !important; font-size:13px !important; }
+.wt-drp .Select-value        { color:#0b1220 !important; background:#f5f7fb !important; border-radius:10px !important; margin:5px 8px !important; padding:0 8px !important; border:none !important; }
+.wt-drp .Select-value-label  { color:#0b1220 !important; opacity:1 !important; font-size:13px !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp .Select-input input  { color:#0b1220 !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp .Select.has-value.Select--single > .Select-control .Select-value,
+.wt-drp .Select.has-value.Select--single > .Select-control .Select-value .Select-value-label { color:#0b1220 !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp .Select-arrow        { border-top-color: #334155 !important; }
 .wt-drp .Select-menu-outer {
     background: #142336 !important;
     border: 1px solid """ + C["border"] + """ !important;
@@ -880,15 +1213,19 @@ pre, code, .dash-spreadsheet-container {
 .wt-drp .Select-option.is-selected { background: rgba(34, 211, 170, 0.18) !important; color:#fff !important; }
 
 /* Dash v2 react-select */
-.wt-drp [class*="control"]       { background:""" + C["surf2"] + """ !important; border-color:""" + C["border"] + """ !important; min-height:42px !important; box-shadow:none !important; }
-.wt-drp [class*="singleValue"]   { color:""" + C["text"] + """ !important; font-size:13px !important; }
-.wt-drp [class*="placeholder"]   { color:""" + C["muted"] + """ !important; font-size:13px !important; }
+.wt-drp [class*="control"]       { background:#f5f7fb !important; border-color:""" + C["border"] + """ !important; min-height:42px !important; box-shadow:none !important; }
+.wt-drp [class*="singleValue"]   { color:#0b1220 !important; background:#f5f7fb !important; border-radius:10px !important; padding:2px 8px !important; font-size:13px !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp [class*="singleValue"] * { color:#0b1220 !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp [class*="placeholder"]   { color:#0b1220 !important; opacity:1 !important; font-size:13px !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp [class*="placeholder"] * { color:#0b1220 !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
+.wt-drp [class*="valueContainer"],
+.wt-drp [class*="valueContainer"] * { color:#0b1220 !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
 .wt-drp [class*="menu"]          { background:#142336 !important; border:1px solid """ + C["border"] + """ !important; z-index:9999 !important; }
 .wt-drp [class*="option"]        { background:#142336 !important; color:""" + C["text"] + """ !important; font-size:13px !important; }
 .wt-drp [class*="option"]:hover  { background:rgba(105, 183, 255, 0.18) !important; }
-.wt-drp [class*="dropdownIndicator"] svg { fill:""" + C["muted"] + """ !important; }
+.wt-drp [class*="dropdownIndicator"] svg { fill:#334155 !important; }
 .wt-drp [class*="indicatorSeparator"] { background:""" + C["border"] + """ !important; }
-.wt-drp [class*="Input"] input   { color:""" + C["text"] + """ !important; }
+.wt-drp [class*="Input"] input   { color:#0b1220 !important; opacity:1 !important; -webkit-text-fill-color:#0b1220 !important; }
 
 /* ── Checkboxy ── */
 input[type=checkbox] { accent-color:""" + C["blue"] + """; width:14px; height:14px; cursor:pointer; }
@@ -945,12 +1282,14 @@ def _worker(symbol, tf, market, start, end, capital,
         update_csv_cache(csv_path=csv_path, symbol=symbol, interval=tf,
                          start_date=start or BINANCE_START_DATE,
                          market=market or "spot", verbose=False)
+        _invalidate_chart_cache(symbol, tf)
 
         if gs()["stop"]:
             ss(running=False, status="Zatrzymano.", progress=""); return
 
         ss(status="Wczytuję i przygotowuję dane...")
         df = prepare_indicators(load_klines(csv_path))
+        _chart_df_cache[(symbol.lower(), tf)] = df.copy()
 
         # ── walidacja i filtrowanie dat ────────────────────────────────────────
         def _parse_date(s, label):
@@ -1097,16 +1436,31 @@ def on_chart_filter(fval):
     Output("store-selected-trade","data"),
     Output("tabs","value"),
     Input("trades-table","active_cell"),
-    State("trades-table","data"),
+    State("trades-table","derived_viewport_data"),
+    State("store-result","data"),
     prevent_initial_call=True,
 )
-def on_trade_select(active_cell, table_data):
-    if not active_cell or not table_data:
+def on_trade_select(active_cell, viewport_data, result_data):
+    if not active_cell or not viewport_data or not result_data:
         return dash.no_update, dash.no_update
     row_idx = active_cell.get("row", -1)
-    if row_idx < 0 or row_idx >= len(table_data):
+    if row_idx < 0 or row_idx >= len(viewport_data):
         return dash.no_update, dash.no_update
-    return table_data[row_idx], "chart"
+
+    trade_no = viewport_data[row_idx].get("trade_no")
+    trades_df = _normalize_chart_trades(pd.DataFrame(result_data.get("trades", [])))
+    if trades_df.empty or "trade_no" not in trades_df.columns:
+        return dash.no_update, dash.no_update
+
+    try:
+        trade_no = int(float(trade_no))
+    except Exception:
+        return dash.no_update, dash.no_update
+
+    selected = trades_df[trades_df["trade_no"] == trade_no]
+    if selected.empty:
+        return dash.no_update, dash.no_update
+    return _serialize_trade_record(selected.iloc[0]), "chart"
 
 # ─── Callback: uruchom / stop ─────────────────────────────────────────────────
 @app.callback(
@@ -1157,53 +1511,410 @@ def on_run_stop(nr, ns,
 
 # ─── Callback: polling przycisków (odblokuj Run gdy WFO skończone) ────────────
 @app.callback(
-    Output("btn-run","disabled", allow_duplicate=True),
-    Output("btn-stop","disabled", allow_duplicate=True),
-    Input("poll","n_intervals"),
-    prevent_initial_call=True,
-)
-def poll_buttons(_):
-    running = gs()["running"]
-    return running, not running
-
-# ─── Callback: polling (status + wyniki) ──────────────────────────────────────
-@app.callback(
     Output("run-status","children"),
     Output("run-progress","children"),
     Output("store-result","data"),
+    Output("store-run-meta","data"),
+    Input("poll","n_intervals"),
+    State("store-result","data"),
+    State("store-run-meta","data"),
+    prevent_initial_call=True,
+)
+def poll_status(_, prev_result, prev_meta):
+    g = gs()
+    result = g["result"]
+    result_version = int(g.get("result_version", 0))
+    last_version = int((prev_meta or {}).get("result_version", -1))
+    result_out = result if result is not None and result_version != last_version else dash.no_update
+    meta = {
+        "running": bool(g["running"]),
+        "has_result": bool(result is not None or prev_result),
+        "result_version": result_version,
+    }
+    return g["status"], g["progress"], result_out, meta
+
+
+@app.callback(
+    Output("poll","interval"),
+    Input("store-run-meta","data"),
+)
+def tune_poll_interval(meta):
+    if meta and meta.get("running"):
+        return 1000
+    return 15000
+
+
+@app.callback(
+    Output("btn-run","disabled", allow_duplicate=True),
+    Output("btn-stop","disabled", allow_duplicate=True),
+    Input("store-run-meta","data"),
+    prevent_initial_call=True,
+)
+def poll_buttons(meta):
+    running = bool(meta and meta.get("running"))
+    return running, not running
+
+
+def _empty_results_view() -> html.Div:
+    return html.Div(
+        "Skonfiguruj parametry i kliknij ▶ Uruchom",
+        style={"color": C["muted"], "fontSize": "14px", "textAlign": "center", "marginTop": "80px"},
+    )
+
+
+def _result_metrics(result_data: dict | None) -> list:
+    if not result_data:
+        return []
+
+    stats = result_data.get("stats", {})
+    capital = result_data.get("capital", INITIAL_CAPITAL)
+    symbol = result_data.get("symbol", "")
+    tf = result_data.get("tf", "")
+
+    def pc(value):
+        return C["green"] if value > 0 else (C["red"] if value < 0 else C["text"])
+
+    net_ret = stats.get("net_return_pct", 0)
+    net_pnl = stats.get("net_profit_usd", 0)
+    fee_tot = stats.get("fee_total_usd", 0)
+    wr = stats.get("winrate_pct", 0)
+    pf = stats.get("profit_factor", 0)
+    dd = stats.get("max_drawdown_pct", 0)
+    cagr = stats.get("cagr_pct", 0)
+    exp_v = stats.get("expectancy_usd", 0)
+    n_tr = stats.get("n_trades", 0)
+    fin_cap = stats.get("final_capital", capital)
+
+    return [
+        mcrd("Net zwrot", f"{net_ret:+.2f}%", f"${net_pnl:+,.0f}", pc(net_ret)),
+        mcrd("Kapitał końc.", f"${fin_cap:,.0f}", f"start: ${capital:,.0f}"),
+        mcrd("Opłaty", f"${fee_tot:,.0f}", f"{stats.get('fee_total_pct', 0):.1f}%", C["amber"]),
+        mcrd(
+            "Winrate",
+            f"{wr:.1f}%",
+            f"PF: {pf:.2f}" if pf and not (isinstance(pf, float) and np.isnan(pf)) else "PF: n/d",
+        ),
+        mcrd("Max DD", f"{dd:.1f}%", None, C["red"]),
+        mcrd("CAGR", f"{cagr:.1f}%", f"{symbol} {tf}", pc(cagr)),
+        mcrd("Transakcji", str(n_tr), f"exp: ${exp_v:.1f}/tr"),
+    ]
+
+
+def _build_chart_tab(selected_trade: dict | None, chart_filter_val: str | None) -> html.Div:
+    chart_filt = chart_filter_val or "all"
+    filter_opts = [
+        {"label": "Wszystkie", "value": "all"},
+        {"label": "Long", "value": "long"},
+        {"label": "Short", "value": "short"},
+        {"label": "TP", "value": "TP"},
+        {"label": "SL", "value": "SL"},
+        {"label": "TRAIL", "value": "TRAIL"},
+    ]
+    return html.Div([
+        html.Div([
+            html.Span(
+                "Filtr: ",
+                style={"fontSize": "11px", "color": C["muted"], "marginRight": "8px", "lineHeight": "28px"},
+            ),
+            dcc.RadioItems(
+                id="chart-filter-radio",
+                options=filter_opts,
+                value=chart_filt,
+                inline=True,
+                inputStyle={"marginRight": "3px", "accentColor": C["blue"]},
+                labelStyle={"color": C["text"], "fontSize": "12px", "marginRight": "12px", "cursor": "pointer"},
+            ),
+        ], style={
+            "display": "flex",
+            "alignItems": "center",
+            "marginBottom": "14px",
+            "background": C["surf2"],
+            "borderRadius": "16px",
+            "padding": "10px 14px",
+            "border": f"1px solid {C['border']}",
+        }),
+        html.Div([
+            html.Div([
+                html.Div([
+                    html.Div("price map", className="panel-eyebrow"),
+                    html.H3("Chart + trade markers"),
+                ]),
+                html.Div([
+                    "Charting by ",
+                    html.A("TradingView", href="https://www.tradingview.com/", target="_blank", rel="noreferrer"),
+                    " using Lightweight Charts",
+                ], className="tv-attribution"),
+            ], className="panel-head"),
+            html.Div(id="tv-chart", className="tv-chart"),
+            html.Div(
+                "Górny panel pokazuje cenę i markery trade'ów, a dolny RSI oraz TMA(RSI), "
+                "czyli sygnał używany przy wejściach i wyjściach.",
+                className="chart-caption",
+            ),
+        ], className="result-panel"),
+        html.Div(_trade_detail_panel(selected_trade), className="detail-panel-wrap"),
+    ])
+
+# ─── Callback: polling (status + wyniki) ──────────────────────────────────────
+@app.callback(
     Output("store-chart-payload","data"),
     Output("metrics-row","children"),
     Output("tab-content","children"),
-    Input("poll","n_intervals"),
     Input("tabs","value"),
-    State("store-result","data"),
-    State("store-chart-filter","data"),
-    State("store-selected-trade","data"),
+    Input("store-result","data"),
+    Input("store-chart-filter","data"),
+    Input("store-selected-trade","data"),
     prevent_initial_call=True,
 )
-def poll(_, tab, prev_result, chart_filter_val, selected_trade_val):
-    g = gs()
-    status   = g["status"]
-    progress = g["progress"]
-    result   = g["result"]
+def render_results(tab, result_data, chart_filter_val, selected_trade_val):
+    r = result_data
+    if not r:
+        return None, [], _empty_results_view()
 
+    stats = r.get("stats", {})
+    capital = r.get("capital", INITIAL_CAPITAL)
+    symbol = r.get("symbol", "")
+    tf = r.get("tf", "")
+    metrics = _result_metrics(r)
+
+    try:
+        if tab == "equity":
+            equity_df = pd.DataFrame(r.get("equity", []))
+            return dash.no_update, metrics, dcc.Graph(
+                figure=fig_eq(equity_df, capital),
+                style={"height": "480px"},
+                config={"displayModeBar": False},
+            )
+
+        if tab == "chart":
+            trades_df = pd.DataFrame(r.get("trades", []))
+            windows_df = pd.DataFrame(r.get("windows_df", []))
+            chart_payload = lightweight_chart_payload(
+                symbol,
+                tf,
+                trades_df,
+                windows_df=windows_df,
+                selected_trade=selected_trade_val,
+                filter_mode=chart_filter_val or "all",
+            )
+            return chart_payload, metrics, _build_chart_tab(selected_trade_val, chart_filter_val)
+
+        if tab == "trades":
+            trades_df = pd.DataFrame(r.get("trades", []))
+            if trades_df.empty:
+                return dash.no_update, metrics, html.Div("Brak transakcji", style={"color": C["muted"]})
+
+            disp = _trade_table_frame(trades_df)
+
+            return dash.no_update, metrics, html.Div([
+                html.Div(f"{len(disp)} transakcji", style={"fontSize": "12px", "color": C["muted"], "marginBottom": "8px"}),
+                dash_table.DataTable(
+                    id="trades-table",
+                    data=disp.to_dict("records"),
+                    columns=[
+                        {"name": "#" if c == "trade_no" else c, "id": c}
+                        for c in disp.columns
+                    ],
+                    page_size=25,
+                    style_table={"overflowX": "auto"},
+                    style_cell={
+                        "background": C["surface"],
+                        "color": C["text"],
+                        "border": f"1px solid {C['border']}",
+                        "fontSize": "12px",
+                        "padding": "6px 10px",
+                        "textAlign": "left",
+                    },
+                    style_header={
+                        "background": C["surf2"],
+                        "color": C["muted"],
+                        "fontWeight": "600",
+                        "fontSize": "10px",
+                        "textTransform": "uppercase",
+                        "letterSpacing": "0.05em",
+                        "border": f"1px solid {C['border']}",
+                    },
+                    style_data_conditional=[
+                        {"if": {"column_id": "trade_no"}, "fontWeight": "700", "color": C["amber"]},
+                        {"if": {"filter_query": '{side} = "long"', "column_id": "side"}, "color": C["green"]},
+                        {"if": {"filter_query": '{side} = "short"', "column_id": "side"}, "color": C["red"]},
+                        {"if": {"filter_query": '{reason} = "SL"', "column_id": "reason"}, "color": C["red"]},
+                        {"if": {"filter_query": '{reason} = "TP"', "column_id": "reason"}, "color": C["green"]},
+                    ],
+                    sort_action="native",
+                    filter_action="native",
+                ),
+            ])
+
+        if tab == "fees":
+            fee_df = pd.DataFrame(r.get("fee_df", []))
+            fee_tot = stats.get("fee_total_usd", 0)
+            return dash.no_update, metrics, html.Div([
+                html.Div([
+                    mcrd("Łączne opłaty", f"${fee_tot:,.2f}", None, C["amber"]),
+                    mcrd("% kapitału", f"{stats.get('fee_total_pct', 0):.2f}%", None, C["amber"]),
+                    mcrd("Slippage", f"${stats.get('slippage_total_usd', 0):,.2f}"),
+                ], style={"display": "flex", "gap": "10px", "marginBottom": "14px"}),
+                dcc.Graph(figure=fig_fee(fee_df), style={"height": "300px"}, config={"displayModeBar": False}),
+                dash_table.DataTable(
+                    data=fee_df.to_dict("records") if not fee_df.empty else [],
+                    columns=[{"name": c, "id": c} for c in fee_df.columns] if not fee_df.empty else [],
+                    page_size=20,
+                    style_table={"overflowX": "auto"},
+                    style_cell={
+                        "background": C["surface"],
+                        "color": C["text"],
+                        "border": f"1px solid {C['border']}",
+                        "fontSize": "12px",
+                        "padding": "6px 10px",
+                    },
+                    style_header={
+                        "background": C["surf2"],
+                        "color": C["muted"],
+                        "fontWeight": "600",
+                        "fontSize": "10px",
+                        "textTransform": "uppercase",
+                        "border": f"1px solid {C['border']}",
+                    },
+                    sort_action="native",
+                ) if not fee_df.empty else html.Div(),
+            ])
+
+        if tab == "wfo-win":
+            windows_df = pd.DataFrame(r.get("windows_df", []))
+            if windows_df.empty:
+                return dash.no_update, metrics, html.Div("Uruchom tryb WFO.", style={"color": C["muted"]})
+
+            prof = (windows_df["live_return_pct"] > 0).sum()
+            nw = len(windows_df)
+            num_cols = windows_df.select_dtypes(include="number").columns
+            wd_disp = windows_df.copy()
+            wd_disp[num_cols] = wd_disp[num_cols].round(4)
+            return dash.no_update, metrics, html.Div([
+                html.Div([
+                    mcrd("Okien live", str(nw)),
+                    mcrd("Zyskownych", f"{prof}/{nw}", f"{prof / nw * 100:.0f}%", C["green"]),
+                    mcrd("Śr. zwrot", f"{windows_df['live_return_pct'].mean():.3f}%"),
+                    mcrd("Mediana", f"{windows_df['live_return_pct'].median():.3f}%"),
+                ], style={"display": "flex", "gap": "10px", "marginBottom": "14px"}),
+                dcc.Graph(figure=fig_wfo(windows_df), style={"height": "260px"}, config={"displayModeBar": False}),
+                html.Div(style={"height": "12px"}),
+                dash_table.DataTable(
+                    data=wd_disp.to_dict("records"),
+                    columns=[{"name": c, "id": c} for c in wd_disp.columns],
+                    page_size=20,
+                    style_table={"overflowX": "auto"},
+                    style_cell={
+                        "background": C["surface"],
+                        "color": C["text"],
+                        "border": f"1px solid {C['border']}",
+                        "fontSize": "12px",
+                        "padding": "6px 10px",
+                    },
+                    style_header={
+                        "background": C["surf2"],
+                        "color": C["muted"],
+                        "fontWeight": "600",
+                        "fontSize": "10px",
+                        "textTransform": "uppercase",
+                        "border": f"1px solid {C['border']}",
+                    },
+                    style_data_conditional=[
+                        {"if": {"filter_query": "{live_return_pct} > 0", "column_id": "live_return_pct"}, "color": C["green"]},
+                        {"if": {"filter_query": "{live_return_pct} < 0", "column_id": "live_return_pct"}, "color": C["red"]},
+                    ],
+                    sort_action="native",
+                ),
+            ])
+
+        if tab == "wfo-par":
+            windows_df = pd.DataFrame(r.get("windows_df", []))
+            return dash.no_update, metrics, html.Div(
+                dcc.Graph(figure=fig_pdist(windows_df), style={"height": "380px"}, config={"displayModeBar": False})
+                if not windows_df.empty
+                else html.Div("Uruchom tryb WFO.", style={"color": C["muted"]})
+            )
+
+        if tab == "brkdwn":
+            side_df = pd.DataFrame(r.get("side_bk", []))
+            yr_df = pd.DataFrame(r.get("yr_bk", []))
+            q_df = pd.DataFrame(r.get("q_bk", []))
+
+            def mini(df, title):
+                if df is None or df.empty:
+                    return html.Div(f"{title}: brak", style={"color": C["muted"], "fontSize": "12px"})
+                num_cols = df.select_dtypes(include="number").columns
+                df2 = df.copy()
+                df2[num_cols] = df2[num_cols].round(3)
+                return html.Div([
+                    html.Div(title, style={"fontSize": "12px", "color": C["text"], "marginBottom": "6px", "fontWeight": "500"}),
+                    dash_table.DataTable(
+                        data=df2.to_dict("records"),
+                        columns=[{"name": c, "id": c} for c in df2.columns],
+                        style_cell={
+                            "background": C["surface"],
+                            "color": C["text"],
+                            "border": f"1px solid {C['border']}",
+                            "fontSize": "12px",
+                            "padding": "5px 10px",
+                        },
+                        style_header={
+                            "background": C["surf2"],
+                            "color": C["muted"],
+                            "fontWeight": "600",
+                            "fontSize": "10px",
+                            "textTransform": "uppercase",
+                            "border": f"1px solid {C['border']}",
+                        },
+                    ),
+                ], style={**card_s, "marginBottom": "14px"})
+
+            ext = []
+            for key, label in [
+                ("expectancy_usd", "Expectancy/trade USD"),
+                ("avg_winner_usd", "Śr. winner USD"),
+                ("avg_loser_usd", "Śr. loser USD"),
+                ("median_ret_pct", "Median ret %"),
+                ("longest_losing_streak", "Seria strat"),
+                ("exposure_pct", "Czas w pozycji %"),
+            ]:
+                value = stats.get(key)
+                if value is not None and not (isinstance(value, float) and np.isnan(value)):
+                    ext.append(mcrd(label, f"{value:.2f}" if isinstance(value, float) else str(value)))
+
+            return dash.no_update, metrics, html.Div([
+                html.Div(ext, style={"display": "flex", "gap": "10px", "flexWrap": "wrap", "marginBottom": "14px"}),
+                mini(side_df, "Long vs Short"),
+                mini(yr_df, "Breakdown roczny"),
+                mini(q_df, "Breakdown kwartalny"),
+            ])
+    except Exception as tab_err:
+        import traceback as _tb
+        print(f"[POLL TAB ERROR] tab={tab}: {_tb.format_exc()}", flush=True)
+        return dash.no_update, metrics, html.Div([
+            html.Div(f"⚠ Błąd w zakładce [{tab}]:", style={"color": C["red"], "fontWeight": "600", "marginBottom": "6px"}),
+            html.Pre(
+                str(tab_err),
+                style={
+                    "color": C["amber"],
+                    "fontSize": "11px",
+                    "whiteSpace": "pre-wrap",
+                    "background": C["surf2"],
+                    "padding": "10px",
+                    "borderRadius": "6px",
+                },
+            ),
+        ], style={"padding": "20px"})
     # ── nie czyść store gdy brak nowego wyniku ────────────────────────────────
     # Jeśli _state["result"] jest None, nie nadpisuj store (zostawiamy poprzednie dane)
-    result_out = result if result is not None else dash.no_update
 
     # Pobierz dane do renderowania: nowy wynik lub poprzedni ze store
-    if result is not None:
-        r = result
-    elif prev_result:
-        r = prev_result
-    else:
-        r = None
 
     if not r:
         empty = html.Div("Skonfiguruj parametry i kliknij ▶ Uruchom",
                          style={"color":C["muted"],"fontSize":"14px",
                                 "textAlign":"center","marginTop":"80px"})
-        return status, progress, result_out, None, [], empty
+        return None, [], empty
 
     stats       = r.get("stats", {})
     capital     = r.get("capital", INITIAL_CAPITAL)
@@ -1465,7 +2176,7 @@ def poll(_, tab, prev_result, chart_filter_val, selected_trade_val):
                             "background":C["surf2"],"padding":"10px","borderRadius":"6px"}),
         ], style={"padding":"20px"})
 
-    return status, progress, result_out, chart_payload, metrics, content
+    return chart_payload, metrics, content
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
