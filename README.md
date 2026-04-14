@@ -69,7 +69,7 @@ QUERIES.md
 
 Najwazniejsze zmienne w `.env`:
 
-- `TRACKED_COINS=BTC,ETH,SPX,cash:GOLD,cash:SILVER,cash:WTI`
+- `TRACKED_COINS=BTC,ETH,xyz:SP500,xyz:GOLD,xyz:SILVER,cash:WTI`
 - `TRACKED_KEYWORDS=`
 - `MIN_NOTIONAL_USD=100000`
 - `CSV_EXPORT_INTERVAL_SECONDS=30`
@@ -78,7 +78,7 @@ Najwazniejsze zmienne w `.env`:
 
 Jak dziala wybor rynkow:
 
-- `TRACKED_COINS` dopasowuje dokladne nazwy rynku, np. `BTC`, `ETH`, `SPX`, `cash:GOLD`.
+- `TRACKED_COINS` dopasowuje dokladne nazwy rynku, np. `BTC`, `ETH`, `xyz:SP500`, `xyz:GOLD`.
 - `TRACKED_KEYWORDS` jest opcjonalne i na start moze zostac puste.
 - To jest przydatne dla builder-deployed perps, gdzie nazwa moze miec prefiks typu `dex:ASSET`.
 
@@ -145,8 +145,8 @@ http://127.0.0.1:8080
 ## Uwagi operacyjne
 
 - Ten MVP nasluchuje rynki `perp`.
-- Dla `gold`, `silver` i `WTI` listener jest ustawiony na konkretne builder-deployed rynki `cash:GOLD`, `cash:SILVER`, `cash:WTI`.
-- Dla amerykanskiego indeksu listener obserwuje rynek `SPX`.
+- Dla `gold`, `silver` i `SP500` listener jest ustawiony na najbardziej plynne obecnie builder-deployed rynki `xyz:GOLD`, `xyz:SILVER`, `xyz:SP500`.
+- Dla ropy `WTI` listener obserwuje rynek `cash:WTI`.
 - Gdy bedziemy gotowi rozszerzyc system o inne aktywa, wystarczy dopisac je do `TRACKED_COINS` albo `TRACKED_KEYWORDS`.
 - Jesli chcesz pozniej dodac alerty, najprosciej dolozyc osobny worker Telegram/Discord nad ta sama baza.
 - Nie trzeba wystawiac portu `5432` do internetu. `Adminer` laczy sie z baza po sieci Dockera.

@@ -41,7 +41,7 @@ POSTGRES_USER=listener
 POSTGRES_PASSWORD=tu_daj_mocne_haslo
 DATABASE_URL=postgresql://listener:tu_daj_mocne_haslo@db:5432/whale_listener
 
-TRACKED_COINS=BTC,ETH,SPX,cash:GOLD,cash:SILVER,cash:WTI
+TRACKED_COINS=BTC,ETH,xyz:SP500,xyz:GOLD,xyz:SILVER,cash:WTI
 TRACKED_KEYWORDS=
 MIN_NOTIONAL_USD=100000
 
