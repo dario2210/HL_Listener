@@ -41,7 +41,7 @@ POSTGRES_USER=listener
 POSTGRES_PASSWORD=tu_daj_mocne_haslo
 DATABASE_URL=postgresql://listener:tu_daj_mocne_haslo@db:5432/whale_listener
 
-TRACKED_COINS=BTC,ETH
+TRACKED_COINS=BTC,ETH,SPX,cash:GOLD,cash:SILVER,cash:WTI
 TRACKED_KEYWORDS=
 MIN_NOTIONAL_USD=100000
 
@@ -200,4 +200,3 @@ Ostatnie transakcje:
 ```bash
 docker compose exec db psql -U listener -d whale_listener -c "select trade_time, coin, notional_usd, buyer_address, seller_address from hl_trades order by trade_time desc limit 10;"
 ```
-
