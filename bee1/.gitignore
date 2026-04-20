@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.pytest_tmp/
+.manual_test_tmp/
+ema11_live_runner.log

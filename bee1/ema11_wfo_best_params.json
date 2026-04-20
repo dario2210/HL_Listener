@@ -1,0 +1,10 @@
+{
+  "tp_pct": 0.035,
+  "sl_pct": 0.005,
+  "trail_drop": 4.0,
+  "ema_len": 100,
+  "tma_low_min": 30.0,
+  "tma_low_max": 45.0,
+  "tma_high_min": 55.0,
+  "tma_high_max": 70.0
+}

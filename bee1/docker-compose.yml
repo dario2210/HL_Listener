@@ -1,0 +1,40 @@
+version: "3.8"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# BEZPIECZEŃSTWO (punkt 16):
+#   Dashboard NIE powinien być publicznie dostępny bez warstwy ochrony.
+#   Zalecana konfiguracja produkcyjna:
+#     - runner bez portów publicznych (usuń sekcję 'ports' z ema11-bot)
+#     - dashboard za oddzielnym reverse proxy (np. nginx) z auth basic/OAuth
+#     - dostęp tylko przez VPN lub whitelist IP na poziomie firewalla
+#
+#   Obecna konfiguracja: port 8051 JEST wystawiony lokalnie (127.0.0.1 only).
+#   Zmień "127.0.0.1:8051:8051" na "8051:8051" TYLKO jeśli masz
+#   pewność co do bezpieczeństwa sieciowego.
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  ema11-bot:
+    build:
+      context: /home/darek/apps/infra/bee1
+      dockerfile: Dockerfile
+    image: ema11-bot:latest
+    container_name: ema11_bot
+    restart: unless-stopped
+    ports:
+      # Tylko localhost – dashboard niedostępny publicznie (punkt 16)
+      - "127.0.0.1:8051:8051"
+    volumes:
+      # cały katalog projektu zamontowany do kontenera
+      # – zmiany w plikach na hoście są od razu widoczne
+      - /home/darek/apps/infra/bee1:/app
+    environment:
+      - TZ=Europe/Warsaw
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8051')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
