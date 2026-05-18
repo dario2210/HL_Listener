@@ -14,6 +14,7 @@
   "wt_long_exit_min_level": 40.0,
   "wt_long_breakeven_enabled": true,
   "wt_long_breakeven_trigger_pct": 0.01,
+  "wt_long_breakeven_offset_pct": 0.001,
   "wt_long_tp1_enabled": false,
   "wt_long_tp1_fraction": 0.0,
   "wt_long_tp1_breakeven_enabled": false,

@@ -528,6 +528,7 @@ def generate_exit_signal(
 
         breakeven_enabled = bool(params.get("wt_long_breakeven_enabled", True))
         breakeven_trigger_pct = float(params.get("wt_long_breakeven_trigger_pct", 0.01) or 0.0)
+        breakeven_offset_pct = float(params.get("wt_long_breakeven_offset_pct", 0.0) or 0.0)
         if (
             breakeven_enabled
             and breakeven_trigger_pct > 0.0
@@ -536,7 +537,7 @@ def generate_exit_signal(
             and bar.high >= position.entry_price * (1.0 + breakeven_trigger_pct)
         ):
             position.tp1_taken = True
-            position.stop_price = position.entry_price
+            position.stop_price = position.entry_price * (1.0 + breakeven_offset_pct)
             position.tp1_protection_after_bars = position.bars_in_position + 1
 
         if (
@@ -550,11 +551,13 @@ def generate_exit_signal(
             meta = _meta(breakeven_reason)
             meta["breakeven_price"] = round(position.entry_price, 4)
             meta["breakeven_trigger_pct"] = breakeven_trigger_pct
+            meta["breakeven_offset_pct"] = breakeven_offset_pct
+            meta["breakeven_stop_price"] = round(position.stop_price, 4)
             meta["remaining_fraction_before"] = position.remaining_fraction
             return Signal(
                 action="close_force",
                 reason=breakeven_reason,
-                exit_price=position.entry_price,
+                exit_price=position.stop_price,
                 meta=meta,
             )
         if _cross_down(bar, prev_bar):

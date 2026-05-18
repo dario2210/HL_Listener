@@ -60,6 +60,7 @@ WT_LONG_TP2_PCT = 0.02
 WT_LONG_TP2_FRACTION = 0.0
 WT_LONG_BREAKEVEN_ENABLED = True
 WT_LONG_BREAKEVEN_TRIGGER_PCT = 0.01
+WT_LONG_BREAKEVEN_OFFSET_PCT = 0.001
 WT_LONG_EMERGENCY_SL_ENABLED = False
 WT_LONG_EMERGENCY_SL_CAPITAL_PCT = 0.0
 WT_SHORT_TP1_ENABLED = False
@@ -96,6 +97,10 @@ WT_LONG_ENTRY_MAX_ABOVE_ZERO_GRID = [-25.0, -30.0, -35.0]
 WT_LONG_ENTRY_MAX_ABOVE_ZERO_OPTIONS = [-25.0, -30.0, -35.0]
 WT_LONG_CLOSE_MIN_LEVEL_GRID = [30.0, 40.0, 50.0]
 WT_LONG_CLOSE_MIN_LEVEL_OPTIONS = [30.0, 40.0, 50.0]
+WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID = [0.01, 0.015, 0.02]
+WT_LONG_BREAKEVEN_TRIGGER_PCT_OPTIONS = [0.01, 0.015, 0.02]
+WT_LONG_BREAKEVEN_OFFSET_PCT_GRID = [0.001, 0.0015]
+WT_LONG_BREAKEVEN_OFFSET_PCT_OPTIONS = [0.0005, 0.001, 0.0015, 0.002]
 WT_SHORT_ENTRY_MIN_BELOW_ZERO_GRID = [30.0, 40.0, 50.0, 60.0]
 WT_SHORT_ENTRY_MIN_BELOW_ZERO_OPTIONS = [30.0, 40.0, 50.0, 60.0]
 WT_H4_LONG_FILTER_MAX_GRID = [0.0]
@@ -155,6 +160,7 @@ DEFAULT_PARAMS = {
     "wt_long_tp2_fraction": WT_LONG_TP2_FRACTION,
     "wt_long_breakeven_enabled": WT_LONG_BREAKEVEN_ENABLED,
     "wt_long_breakeven_trigger_pct": WT_LONG_BREAKEVEN_TRIGGER_PCT,
+    "wt_long_breakeven_offset_pct": WT_LONG_BREAKEVEN_OFFSET_PCT,
     "wt_long_emergency_sl_enabled": WT_LONG_EMERGENCY_SL_ENABLED,
     "wt_long_emergency_sl_capital_pct": WT_LONG_EMERGENCY_SL_CAPITAL_PCT,
     "wt_short_tp1_enabled": WT_SHORT_TP1_ENABLED,
@@ -226,6 +232,9 @@ def load_params() -> dict:
     )
     params["wt_long_breakeven_trigger_pct"] = float(
         params.get("wt_long_breakeven_trigger_pct", WT_LONG_BREAKEVEN_TRIGGER_PCT) or 0.0
+    )
+    params["wt_long_breakeven_offset_pct"] = float(
+        params.get("wt_long_breakeven_offset_pct", WT_LONG_BREAKEVEN_OFFSET_PCT) or 0.0
     )
     sl_pct = 0.0
     params["wt_long_emergency_sl_capital_pct"] = sl_pct

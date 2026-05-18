@@ -24,6 +24,7 @@ BASE_PARAMS = {
     "wt_long_exit_min_level": 40.0,
     "wt_long_breakeven_enabled": True,
     "wt_long_breakeven_trigger_pct": 0.01,
+    "wt_long_breakeven_offset_pct": 0.001,
     "wt_long_tp1_enabled": False,
     "wt_long_tp1_fraction": 0.0,
     "wt_long_tp1_breakeven_enabled": False,
@@ -43,6 +44,7 @@ BASE_PARAMS = {
 def test_dashboard_percent_input_converts_one_percent_to_fraction():
     assert _pct_value(1) == 0.01
     assert _pct_value(0.5) == 0.005
+    assert _pct_value(0.10) == 0.001
 
 
 def _bar(
@@ -124,7 +126,7 @@ def test_one_percent_profit_arms_break_even_without_partial_close():
 
     assert sig.action == "none"
     assert pos.tp1_taken is True
-    assert pos.stop_price == 100.0
+    assert np.isclose(pos.stop_price, 100.1)
 
 
 def test_break_even_stop_closes_after_it_has_been_armed():
@@ -135,7 +137,7 @@ def test_break_even_stop_closes_after_it_has_been_armed():
         entry_price=100.0,
         entry_time=prev.time,
         bars_in_position=2,
-        stop_price=100.0,
+        stop_price=100.1,
         tp1_taken=True,
         tp1_protection_after_bars=2,
     )
@@ -144,7 +146,7 @@ def test_break_even_stop_closes_after_it_has_been_armed():
 
     assert sig.action == "close_force"
     assert sig.reason == "LONG_BREAKEVEN_STOP"
-    assert sig.exit_price == 100.0
+    assert np.isclose(sig.exit_price, 100.1)
 
 
 def test_strategy_runs_full_long_without_partial_tp_rows():

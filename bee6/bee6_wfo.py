@@ -32,7 +32,10 @@ from bee6_params import (
     WT_LONG_ENTRY_MAX_ABOVE_ZERO,
     WT_LONG_ENTRY_MAX_ABOVE_ZERO_GRID,
     WT_LONG_ENTRY_WINDOW_BARS,
+    WT_LONG_BREAKEVEN_OFFSET_PCT,
+    WT_LONG_BREAKEVEN_OFFSET_PCT_GRID,
     WT_LONG_BREAKEVEN_TRIGGER_PCT,
+    WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID,
     WT_LONG_EMERGENCY_SL_CAPITAL_PCT,
     WT_LONG_EMERGENCY_SL_CAPITAL_PCT_GRID,
     WT_LONG_REQUIRE_EMA20_RECLAIM,
@@ -155,6 +158,16 @@ def walk_forward_optimization(
         WT_LONG_CLOSE_MIN_LEVEL_GRID,
         float,
     )
+    long_breakeven_trigger_grid = _clean_grid(
+        grid_overrides.get("wt_long_breakeven_trigger_pct"),
+        WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID,
+        float,
+    )
+    long_breakeven_offset_grid = _clean_grid(
+        grid_overrides.get("wt_long_breakeven_offset_pct"),
+        WT_LONG_BREAKEVEN_OFFSET_PCT_GRID,
+        float,
+    )
     short_zone_grid = (
         _clean_grid(
             grid_overrides.get("wt_short_entry_min_below_zero"),
@@ -214,6 +227,8 @@ def walk_forward_optimization(
         * len(ema_len_grid)
         * len(long_zone_grid)
         * len(long_close_min_level_grid)
+        * len(long_breakeven_trigger_grid)
+        * len(long_breakeven_offset_grid)
         * len(short_zone_grid)
         * len(h4_long_filter_grid)
         * len(h4_long_close_min_grid)
@@ -255,6 +270,7 @@ def walk_forward_optimization(
             "wt_h4_long_filter_max",
             "wt_h4_long_close_min",
             "wt_long_breakeven_trigger_pct",
+            "wt_long_breakeven_offset_pct",
             "wt_long_emergency_sl_capital_pct",
         ]
         if shorts_enabled:
@@ -280,6 +296,8 @@ def walk_forward_optimization(
             wt_ema_filter_len,
             wt_long_entry_max_above_zero,
             wt_long_close_min_level,
+            wt_long_breakeven_trigger_pct,
+            wt_long_breakeven_offset_pct,
             wt_short_entry_min_below_zero,
             wt_h4_long_filter_max,
             wt_h4_short_filter_min,
@@ -296,6 +314,8 @@ def walk_forward_optimization(
             ema_len_grid,
             long_zone_grid,
             long_close_min_level_grid,
+            long_breakeven_trigger_grid,
+            long_breakeven_offset_grid,
             short_zone_grid,
             h4_long_filter_grid,
             h4_short_filter_grid,
@@ -341,12 +361,8 @@ def walk_forward_optimization(
                     "wt_long_tp2_enabled": False,
                     "wt_long_tp2_fraction": 0.0,
                     "wt_long_breakeven_enabled": True,
-                    "wt_long_breakeven_trigger_pct": float(
-                        base_params.get(
-                            "wt_long_breakeven_trigger_pct",
-                            WT_LONG_BREAKEVEN_TRIGGER_PCT,
-                        )
-                    ),
+                    "wt_long_breakeven_trigger_pct": float(wt_long_breakeven_trigger_pct),
+                    "wt_long_breakeven_offset_pct": float(wt_long_breakeven_offset_pct),
                     "wt_long_emergency_sl_enabled": False,
                     "wt_long_emergency_sl_capital_pct": 0.0,
                     "wt_disable_partial_exits": True,
@@ -456,6 +472,10 @@ def walk_forward_optimization(
                 "wt_long_breakeven_trigger_pct",
                 WT_LONG_BREAKEVEN_TRIGGER_PCT,
             )
+            trades_live["wt_long_breakeven_offset_pct"] = best_params.get(
+                "wt_long_breakeven_offset_pct",
+                WT_LONG_BREAKEVEN_OFFSET_PCT,
+            )
             trades_live["wt_long_emergency_sl_capital_pct"] = best_params.get(
                 "wt_long_emergency_sl_capital_pct",
                 WT_LONG_EMERGENCY_SL_CAPITAL_PCT,
@@ -505,6 +525,10 @@ def walk_forward_optimization(
                     "wt_long_breakeven_trigger_pct",
                     WT_LONG_BREAKEVEN_TRIGGER_PCT,
                 ),
+                "best_wt_long_breakeven_offset_pct": best_params.get(
+                    "wt_long_breakeven_offset_pct",
+                    WT_LONG_BREAKEVEN_OFFSET_PCT,
+                ),
                 "best_wt_long_emergency_sl_capital_pct": best_params.get(
                     "wt_long_emergency_sl_capital_pct",
                     WT_LONG_EMERGENCY_SL_CAPITAL_PCT,
@@ -542,6 +566,7 @@ def walk_forward_optimization(
                 f"open_h1={best_params['wt_long_entry_max_above_zero']:.1f} "
                 f"close_h1={best_params.get('wt_long_close_min_level', WT_LONG_CLOSE_MIN_LEVEL):.1f} "
                 f"be={best_params.get('wt_long_breakeven_trigger_pct', WT_LONG_BREAKEVEN_TRIGGER_PCT) * 100:.1f}% "
+                f"be_off={best_params.get('wt_long_breakeven_offset_pct', WT_LONG_BREAKEVEN_OFFSET_PCT) * 100:.2f}% "
                 f"short=off"
             )
 
@@ -646,6 +671,11 @@ def get_latest_best_params(windows_df: pd.DataFrame) -> dict:
         if "best_wt_long_breakeven_trigger_pct" in recent.columns
         else WT_LONG_BREAKEVEN_TRIGGER_PCT
     )
+    long_breakeven_offset_pct = (
+        float(recent["best_wt_long_breakeven_offset_pct"].mode().iloc[0])
+        if "best_wt_long_breakeven_offset_pct" in recent.columns
+        else WT_LONG_BREAKEVEN_OFFSET_PCT
+    )
     allow_longs = True
     allow_shorts = False
     trade_direction = "long"
@@ -680,6 +710,7 @@ def get_latest_best_params(windows_df: pd.DataFrame) -> dict:
         "wt_long_tp2_fraction": 0.0,
         "wt_long_breakeven_enabled": True,
         "wt_long_breakeven_trigger_pct": long_breakeven_trigger_pct,
+        "wt_long_breakeven_offset_pct": long_breakeven_offset_pct,
         "wt_long_emergency_sl_enabled": False,
         "wt_long_emergency_sl_capital_pct": 0.0,
         "wt_disable_partial_exits": True,

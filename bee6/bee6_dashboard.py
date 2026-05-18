@@ -29,7 +29,8 @@ from bee6_params import (
     WT_H4_LONG_CLOSE_MIN_GRID, WT_H4_LONG_CLOSE_MIN_OPTIONS,
     WT_H4_SHORT_FILTER_MIN_GRID, WT_H4_SHORT_FILTER_MIN_OPTIONS,
     WT_LONG_EMERGENCY_SL_CAPITAL_PCT_GRID, WT_LONG_EMERGENCY_SL_CAPITAL_PCT_OPTIONS,
-    WT_LONG_BREAKEVEN_TRIGGER_PCT,
+    WT_LONG_BREAKEVEN_OFFSET_PCT, WT_LONG_BREAKEVEN_OFFSET_PCT_GRID, WT_LONG_BREAKEVEN_OFFSET_PCT_OPTIONS,
+    WT_LONG_BREAKEVEN_TRIGGER_PCT, WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID, WT_LONG_BREAKEVEN_TRIGGER_PCT_OPTIONS,
 )
 from bee6_data     import (
     htf_wt1_column,
@@ -381,6 +382,7 @@ def _strategy_params_from_controls(
     long_close_level,
     h4_long_close_level,
     long_tp1_pct,
+    long_be_offset_pct,
     long_sl_pct,
     fee_rate: float,
     slippage_bps: float,
@@ -390,6 +392,10 @@ def _strategy_params_from_controls(
     breakeven_trigger_pct = _pct_value(
         long_tp1_pct,
         float(DEFAULT_PARAMS.get("wt_long_breakeven_trigger_pct", WT_LONG_BREAKEVEN_TRIGGER_PCT)),
+    )
+    breakeven_offset_pct = _pct_value(
+        long_be_offset_pct,
+        float(DEFAULT_PARAMS.get("wt_long_breakeven_offset_pct", WT_LONG_BREAKEVEN_OFFSET_PCT)),
     )
     params.update(
         {
@@ -444,6 +450,7 @@ def _strategy_params_from_controls(
             "wt_long_tp2_fraction": 0.0,
             "wt_long_breakeven_enabled": True,
             "wt_long_breakeven_trigger_pct": breakeven_trigger_pct,
+            "wt_long_breakeven_offset_pct": breakeven_offset_pct,
             "wt_long_emergency_sl_enabled": False,
             "wt_long_emergency_sl_capital_pct": 0.0,
             "wt_short_tp1_enabled": False,
@@ -477,6 +484,8 @@ def _grid_overrides_from_controls(
     h4_short_filter_grid,
     long_close_level_grid,
     h4_long_close_level_grid,
+    long_be_trigger_grid,
+    long_be_offset_grid,
     long_sl_pct_grid,
 ) -> dict:
     return {
@@ -496,6 +505,16 @@ def _grid_overrides_from_controls(
         "wt_long_close_min_level": _clean_selected_values(
             long_close_level_grid,
             WT_LONG_CLOSE_MIN_LEVEL_GRID,
+            float,
+        ),
+        "wt_long_breakeven_trigger_pct": _clean_selected_values(
+            long_be_trigger_grid,
+            WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID,
+            float,
+        ),
+        "wt_long_breakeven_offset_pct": _clean_selected_values(
+            long_be_offset_grid,
+            WT_LONG_BREAKEVEN_OFFSET_PCT_GRID,
             float,
         ),
         "wt_short_entry_min_below_zero": [float(DEFAULT_PARAMS["wt_short_entry_min_below_zero"])],
@@ -519,6 +538,7 @@ PARAM_SUMMARY_ORDER = [
     "wt_long_entry_max_above_zero",
     "wt_long_close_min_level",
     "wt_long_breakeven_trigger_pct",
+    "wt_long_breakeven_offset_pct",
     "fee_rate",
     "slippage_bps",
 ]
@@ -529,6 +549,7 @@ PARAM_SUMMARY_LABELS = {
     "wt_long_entry_max_above_zero": "Long entry level H1",
     "wt_long_close_min_level": "Red-dot exit level H1",
     "wt_long_breakeven_trigger_pct": "BE trigger",
+    "wt_long_breakeven_offset_pct": "BE offset",
     "fee_rate": "Fee rate",
     "slippage_bps": "Slippage bps",
 }
@@ -617,7 +638,7 @@ def hero_banner() -> html.Div:
             html.Div("Note", className="hero-note-title"),
             html.P(
                 "Siatka WFO optymalizuje poziom wejscia -25/-30/-35 i poziom wyjscia 30/40/50. "
-                "Po ruchu +1% stop jest uzbrajany na break-even."
+                "Po BE trigger stop jest uzbrajany na entry + offset kosztowy."
             ),
         ], className="hero-note"),
     ], className="hero-panel")
@@ -664,6 +685,7 @@ def fig_pdist(wd):
         ("best_wt_long_entry_max_above_zero", "Long entry level H1", C["green"]),
         ("best_wt_long_close_min_level", "Red-dot exit level H1", C["amber"]),
         ("best_wt_long_breakeven_trigger_pct", "BE trigger", C["blue"]),
+        ("best_wt_long_breakeven_offset_pct", "BE offset", C["purple"]),
     ]
     rows = max(1, (len(specs) + 1) // 2)
     fig = make_subplots(
@@ -1296,6 +1318,7 @@ def _annotate_trades(trades_df: pd.DataFrame) -> pd.DataFrame:
         "exit_signal_level", "exit_h4_wt1", "exit_h4_wt2", "exit_h4_delta",
         "holding_hours", "time_to_tp1_hours",
         "close_fraction", "remaining_fraction_after", "position_notional", "logical_trade_no",
+        "wt_long_breakeven_trigger_pct", "wt_long_breakeven_offset_pct",
     ]
     for col in numeric_cols:
         if col in tdf.columns:
@@ -2509,6 +2532,7 @@ def sidebar():
             ], style={"display":"none"}),
             html.Div([
                 html.Div([field("BE trigger %", inp("inp-bt-long-tp1-pct", round(DEFAULT_PARAMS.get("wt_long_breakeven_trigger_pct", WT_LONG_BREAKEVEN_TRIGGER_PCT) * 100.0, 2), type="number", min=0, step=0.1))], style={"flex":"1"}),
+                html.Div([field("BE offset %", inp("inp-bt-long-be-offset-pct", round(DEFAULT_PARAMS.get("wt_long_breakeven_offset_pct", WT_LONG_BREAKEVEN_OFFSET_PCT) * 100.0, 2), type="number", min=0, step=0.01))], style={"flex":"1"}),
                 html.Div([field("Stop loss", drp(
                     "inp-bt-long-sl-pct",
                     [{"label": "Wyłączony", "value": 0.0}] + [
@@ -2534,7 +2558,7 @@ def sidebar():
                 html.Div([field("EMA length", inp("inp-bt-ema-len", DEFAULT_PARAMS["wt_ema_filter_len"], type="number", min=2, max=200, step=1))], style={"display":"none"}),
             ], style={"display":"none"}),
             html.Div(
-                "BEE6: short jest wyłączony. Wejście jest zawsze na następnej świecy po zielonej kropce H1, jeżeli WT1/WT2 na świecy sygnałowej są na poziomie entry lub niżej. Po +1% stop przechodzi na BE, a wyjście sygnałowe wymaga czerwonej kropki H1 na poziomie exit lub wyżej.",
+                "BEE6: short jest wyłączony. Wejście jest zawsze na następnej świecy po zielonej kropce H1, jeżeli WT1/WT2 na świecy sygnałowej są na poziomie entry lub niżej. Po BE trigger stop przechodzi na entry + offset, a wyjście sygnałowe wymaga czerwonej kropki H1 na poziomie exit lub wyżej.",
                 style={"fontSize":"11px","color":C["muted"],"marginTop":"4px"},
             ),
         ],style=card_s),
@@ -2642,6 +2666,18 @@ def sidebar():
                 value=WT_LONG_CLOSE_MIN_LEVEL_GRID, inline=True,
                 inputStyle={"marginRight":"4px","accentColor":C["blue"]},
                 labelStyle={"color":"#e8eaf6","fontSize":"12px","marginRight":"10px"}),
+            sec("BE trigger %"),
+            dcc.Checklist(id="chk-grid-be-trigger",
+                options=[{"label": f" {v * 100:.1f}", "value": v} for v in WT_LONG_BREAKEVEN_TRIGGER_PCT_OPTIONS],
+                value=WT_LONG_BREAKEVEN_TRIGGER_PCT_GRID, inline=True,
+                inputStyle={"marginRight":"4px","accentColor":C["blue"]},
+                labelStyle={"color":"#e8eaf6","fontSize":"12px","marginRight":"10px"}),
+            sec("BE offset %"),
+            dcc.Checklist(id="chk-grid-be-offset",
+                options=[{"label": f" {v * 100:.2f}", "value": v} for v in WT_LONG_BREAKEVEN_OFFSET_PCT_OPTIONS],
+                value=WT_LONG_BREAKEVEN_OFFSET_PCT_GRID, inline=True,
+                inputStyle={"marginRight":"4px","accentColor":C["blue"]},
+                labelStyle={"color":"#e8eaf6","fontSize":"12px","marginRight":"10px"}),
             html.Div([
                 sec("Short zone min"),
                 dcc.Checklist(id="chk-grid-short-zone",
@@ -2673,7 +2709,7 @@ def sidebar():
                     labelStyle={"color":"#e8eaf6","fontSize":"12px","marginRight":"10px"}),
             ], style={"display":"none"}),
             html.Div(
-                "WFO w BEE6 testuje tylko dwa poziomy H1: entry -25/-30/-35 oraz red-dot exit 30/40/50. BE trigger pozostaje ustawiony na +1%.",
+                "WFO w BEE6 testuje poziomy H1 entry -25/-30/-35, red-dot exit 30/40/50, BE trigger 1.0/1.5/2.0% i BE offset 0.10/0.15%.",
                 style={"fontSize":"11px","color":C["muted"],"marginTop":"8px"},
             ),
         ],id="panel-wfo",style=card_s),
@@ -2956,6 +2992,7 @@ def _worker(
     bt_long_close_level,
     bt_h4_long_close,
     bt_long_tp1_pct,
+    bt_long_be_offset_pct,
     bt_long_sl_pct,
     grid_channel,
     grid_avg,
@@ -2971,6 +3008,8 @@ def _worker(
     grid_h4_short,
     grid_long_close_level,
     grid_h4_long_close,
+    grid_be_trigger,
+    grid_be_offset,
     grid_long_sl_pct,
 ):
 
@@ -3064,6 +3103,7 @@ def _worker(
             bt_long_close_level,
             bt_h4_long_close,
             bt_long_tp1_pct,
+            bt_long_be_offset_pct,
             bt_long_sl_pct,
             fee_rate_val,
             slip_bps_val,
@@ -3129,6 +3169,8 @@ def _worker(
             grid_h4_short,
             grid_long_close_level,
             grid_h4_long_close,
+            grid_be_trigger,
+            grid_be_offset,
             grid_long_sl_pct,
         )
 
@@ -3493,6 +3535,7 @@ def load_saved_result(n_clicks, filename):
     State("inp-bt-long-close-level","value"),
     State("inp-bt-h4-long-close","value"),
     State("inp-bt-long-tp1-pct","value"),
+    State("inp-bt-long-be-offset-pct","value"),
     State("inp-bt-long-sl-pct","value"),
     State("chk-grid-channel","value"), State("chk-grid-avg","value"),
     State("chk-grid-signal","value"), State("chk-grid-min-level","value"),
@@ -3503,6 +3546,8 @@ def load_saved_result(n_clicks, filename):
     State("chk-grid-h4-long","value"), State("chk-grid-h4-short","value"),
     State("chk-grid-long-close-level","value"),
     State("chk-grid-h4-long-close","value"),
+    State("chk-grid-be-trigger","value"),
+    State("chk-grid-be-offset","value"),
     State("chk-grid-long-sl-pct","value"),
     prevent_initial_call=True,
 )
@@ -3511,10 +3556,10 @@ def on_run_stop(nr, ns,
     run_mode, direction, fee, slip, opt, live, score,
     bt_channel, bt_avg, bt_signal, bt_min_level,
     bt_reentry, bt_ema_filter, bt_htf_filter, bt_ema_len, bt_long_zone, bt_short_zone, bt_h4_long, bt_h4_short,
-    bt_long_close_level, bt_h4_long_close, bt_long_tp1_pct, bt_long_sl_pct,
+    bt_long_close_level, bt_h4_long_close, bt_long_tp1_pct, bt_long_be_offset_pct, bt_long_sl_pct,
     grid_channel, grid_avg, grid_signal, grid_min_level,
     grid_reentry, grid_ema_filter, grid_htf_filter, grid_ema_len, grid_long_zone, grid_short_zone,
-    grid_h4_long, grid_h4_short, grid_long_close_level, grid_h4_long_close, grid_long_sl_pct):
+    grid_h4_long, grid_h4_short, grid_long_close_level, grid_h4_long_close, grid_be_trigger, grid_be_offset, grid_long_sl_pct):
 
     _sty_active = {"flex":"1","background":C["red"],"border":"none","borderRadius":"8px",
                    "color":"#fff","padding":"10px","fontSize":"13px","fontWeight":"600",
@@ -3538,10 +3583,10 @@ def on_run_stop(nr, ns,
             fee, slip, opt, live, score,
             bt_channel, bt_avg, bt_signal, bt_min_level,
             bt_reentry, bt_ema_filter, bt_htf_filter, bt_ema_len, bt_long_zone, bt_short_zone, bt_h4_long, bt_h4_short,
-            bt_long_close_level, bt_h4_long_close, bt_long_tp1_pct, bt_long_sl_pct,
+            bt_long_close_level, bt_h4_long_close, bt_long_tp1_pct, bt_long_be_offset_pct, bt_long_sl_pct,
             grid_channel, grid_avg, grid_signal, grid_min_level,
             grid_reentry, grid_ema_filter, grid_htf_filter, grid_ema_len, grid_long_zone, grid_short_zone,
-            grid_h4_long, grid_h4_short, grid_long_close_level, grid_h4_long_close, grid_long_sl_pct,
+            grid_h4_long, grid_h4_short, grid_long_close_level, grid_h4_long_close, grid_be_trigger, grid_be_offset, grid_long_sl_pct,
         ))
         t.start()
         return True, False, _sty_active        # Run zablokuj, Stop aktywuj

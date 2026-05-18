@@ -6,19 +6,20 @@
 
 - Timeframe: tylko `1h`.
 - Kierunek: tylko `long`.
-- Wejście: zielona kropka WT1/WT2 na H1, a pozycja otwierana jest na następnej świecy.
-- Strefa wejścia: oba WT (`wt1` i `wt2`) na świecy sygnałowej muszą być na poziomie entry lub niżej.
-- BE: po ruchu +1% stop jest uzbrajany na cenie wejścia.
-- Wyjście: czerwona kropka WT1/WT2 na H1, gdy oba WT są na poziomie exit lub wyżej.
+- Wejscie: zielona kropka WT1/WT2 na H1, a pozycja otwierana jest na nastepnej swiecy.
+- Strefa wejscia: oba WT (`wt1` i `wt2`) na swiecy sygnalowej musza byc na poziomie entry lub nizej.
+- BE: po ruchu zgodnym z `wt_long_breakeven_trigger_pct` stop jest uzbrajany na `entry + wt_long_breakeven_offset_pct`.
+- Wyjscie: czerwona kropka WT1/WT2 na H1, gdy oba WT sa na poziomie exit lub wyzej.
 
 ## Siatka WFO
 
 - `wt_long_entry_max_above_zero`: `-25, -30, -35`
 - `wt_long_close_min_level`: `30, 40, 50`
+- `wt_long_breakeven_trigger_pct`: `0.01, 0.015, 0.02`
+- `wt_long_breakeven_offset_pct`: `0.001, 0.0015`
 - `wt_channel_len`: `10`
 - `wt_avg_len`: `21`
 - `wt_signal_len`: `3`
-- `wt_long_breakeven_trigger_pct`: `0.01`
 
 ## Pliki
 
