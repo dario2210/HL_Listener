@@ -5,6 +5,7 @@ import pandas as pd
 
 from bee6_engine import BarData, PositionState, generate_entry_signal, generate_exit_signal
 from bee6_strategy import Bee6Strategy
+from bee6_dashboard import _pct_value
 
 
 BASE_PARAMS = {
@@ -37,6 +38,11 @@ BASE_PARAMS = {
     "atr_stop_enabled": False,
     "max_bars_in_trade": 0,
 }
+
+
+def test_dashboard_percent_input_converts_one_percent_to_fraction():
+    assert _pct_value(1) == 0.01
+    assert _pct_value(0.5) == 0.005
 
 
 def _bar(

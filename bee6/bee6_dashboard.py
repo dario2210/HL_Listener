@@ -359,8 +359,9 @@ def _direction_flags(direction) -> tuple[str, bool, bool]:
 def _pct_value(value, fallback: float = 0.0) -> float:
     if value in (None, ""):
         return float(fallback)
-    pct = float(value)
-    return pct / 100.0 if pct > 1.0 else pct
+    # Dashboard inputs labelled with "%" are entered as percent points:
+    # 1 means 1%, not the engine's decimal 1.0.
+    return float(value) / 100.0
 
 
 def _strategy_params_from_controls(
