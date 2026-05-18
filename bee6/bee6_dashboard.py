@@ -77,7 +77,7 @@ CHART_VIEW_OPTIONS = [
     {"label": "Tylko transakcje", "value": "trades"},
 ]
 CHART_VIEW_VALUES = {item["value"] for item in CHART_VIEW_OPTIONS}
-BT_DEFAULT_LONG_OPEN_H1 = -15.0
+BT_DEFAULT_LONG_OPEN_H1 = -25.0
 BT_DEFAULT_LONG_CLOSE_H1 = 40.0
 BT_DEFAULT_LONG_OPEN_H4 = 0.0
 BT_DEFAULT_LONG_CLOSE_H4 = 0.0
@@ -616,7 +616,7 @@ def hero_banner() -> html.Div:
         html.Div([
             html.Div("Note", className="hero-note-title"),
             html.P(
-                "Siatka WFO optymalizuje poziom wejscia -10/-15/-20/-25 i poziom wyjscia 30/40/45/50. "
+                "Siatka WFO optymalizuje poziom wejscia -25/-30/-35 i poziom wyjscia 30/40/50. "
                 "Po ruchu +1% stop jest uzbrajany na break-even."
             ),
         ], className="hero-note"),
@@ -2673,7 +2673,7 @@ def sidebar():
                     labelStyle={"color":"#e8eaf6","fontSize":"12px","marginRight":"10px"}),
             ], style={"display":"none"}),
             html.Div(
-                "WFO w BEE6 testuje tylko dwa poziomy H1: entry -10/-15/-20/-25 oraz red-dot exit 30/40/45/50. BE trigger pozostaje ustawiony na +1%.",
+                "WFO w BEE6 testuje tylko dwa poziomy H1: entry -25/-30/-35 oraz red-dot exit 30/40/50. BE trigger pozostaje ustawiony na +1%.",
                 style={"fontSize":"11px","color":C["muted"],"marginTop":"8px"},
             ),
         ],id="panel-wfo",style=card_s),

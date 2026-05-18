@@ -9,7 +9,7 @@
   "short_trading_enabled": false,
   "wt_long_entry_window_bars": 1,
   "wt_short_entry_window_bars": 1,
-  "wt_long_entry_max_above_zero": -15.0,
+  "wt_long_entry_max_above_zero": -25.0,
   "wt_long_close_min_level": 40.0,
   "wt_long_exit_min_level": 40.0,
   "wt_long_breakeven_enabled": true,

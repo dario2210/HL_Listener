@@ -19,7 +19,7 @@ BASE_PARAMS = {
     "allow_shorts": False,
     "short_trading_enabled": False,
     "wt_long_entry_window_bars": 1,
-    "wt_long_entry_max_above_zero": -15.0,
+    "wt_long_entry_max_above_zero": -25.0,
     "wt_long_close_min_level": 40.0,
     "wt_long_exit_min_level": 40.0,
     "wt_long_breakeven_enabled": True,
@@ -74,18 +74,18 @@ def _bar(
 
 
 def test_enters_long_on_candle_after_green_dot_below_entry_level():
-    prev = _bar(hour=1, wt1=-18.0, wt2=-20.0, green=True)
+    prev = _bar(hour=1, wt1=-28.0, wt2=-30.0, green=True)
     bar = _bar(hour=2, close=101.0, wt1=-8.0, wt2=-12.0, bars_since_green=1.0)
 
     sig = generate_entry_signal(bar, prev, BASE_PARAMS, None)
 
     assert sig.action == "open_long"
     assert sig.reason == "WT_H1_GREEN_DOT_NEXT_CANDLE_LONG"
-    assert sig.meta["long_entry_level_h1"] == -15.0
+    assert sig.meta["long_entry_level_h1"] == -25.0
 
 
 def test_does_not_enter_when_green_dot_setup_is_above_entry_level():
-    prev = _bar(hour=1, wt1=-12.0, wt2=-16.0, green=True)
+    prev = _bar(hour=1, wt1=-18.0, wt2=-24.0, green=True)
     bar = _bar(hour=2, close=101.0, wt1=-8.0, wt2=-10.0, bars_since_green=1.0)
 
     sig = generate_entry_signal(bar, prev, BASE_PARAMS, None)
@@ -156,8 +156,8 @@ def test_strategy_runs_full_long_without_partial_tp_rows():
             "high": [100.5, 100.5, 101.2, 102.5, 102.2],
             "low": [99.5, 99.5, 100.8, 101.5, 101.6],
             "close": [100.0, 100.0, 101.0, 102.0, 101.8],
-            "wt1": [-30.0, -18.0, -8.0, 55.0, 42.0],
-            "wt2": [-32.0, -20.0, -12.0, 45.0, 48.0],
+            "wt1": [-30.0, -28.0, -8.0, 55.0, 42.0],
+            "wt2": [-32.0, -30.0, -12.0, 45.0, 48.0],
             "wt_green_dot": [False, True, False, False, False],
             "wt_red_dot": [False, False, False, False, True],
             "bars_since_wt_green_dot": [np.nan, 0.0, 1.0, 2.0, 3.0],

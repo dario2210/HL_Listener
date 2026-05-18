@@ -13,8 +13,8 @@
 
 ## Siatka WFO
 
-- `wt_long_entry_max_above_zero`: `-10, -15, -20, -25`
-- `wt_long_close_min_level`: `30, 40, 45, 50`
+- `wt_long_entry_max_above_zero`: `-25, -30, -35`
+- `wt_long_close_min_level`: `30, 40, 50`
 - `wt_channel_len`: `10`
 - `wt_avg_len`: `21`
 - `wt_signal_len`: `3`
